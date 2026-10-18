@@ -115,9 +115,9 @@ def test_source_errors_do_not_stop_cycle(fixed):
 def test_parse_config_example():
     raw = yaml.safe_load((Path(__file__).parent.parent / "config.example.yaml").read_text())
     cfg = parse_config(raw)
-    assert cfg.watches and cfg.kijiji.category_id == 174
-    assert cfg.watches[0].market_value_by_year[2014] == 8500
-    assert cfg.watches[1].auto_value
+    assert cfg.watches and cfg.kijiji.category_id == 174 and cfg.kijiji.location_slug == "calgary"
+    assert cfg.watches[0].auto_value
+    assert cfg.watches[-1].queries == [""]
     assert cfg.notify.ntfy_topic in (None, os.environ.get("NTFY_TOPIC"))
 
 

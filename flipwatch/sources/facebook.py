@@ -30,7 +30,6 @@ els => els.map(e => ({
 def build_search_url(cfg: FacebookConfig, query: str, filters: SearchFilters | None = None) -> str:
     filters = filters or SearchFilters()
     params = {
-        "query": query,
         "sortBy": "creation_time_descend",
         "daysSinceListed": cfg.days_since_listed,
         "exact": "false",
@@ -45,7 +44,9 @@ def build_search_url(cfg: FacebookConfig, query: str, filters: SearchFilters | N
         params["maxMileage"] = filters.max_km
     if cfg.radius_km:
         params["radius"] = cfg.radius_km
-    return f"{BASE_URL}/marketplace/{cfg.location}/search/?{urlencode(params)}"
+    if not query:  # empty query: browse every new vehicle listing
+        return f"{BASE_URL}/marketplace/{cfg.location}/vehicles?{urlencode(params)}"
+    return f"{BASE_URL}/marketplace/{cfg.location}/search/?{urlencode({'query': query, **params})}"
 
 
 def parse_cards(items: list[dict]) -> list[Listing]:

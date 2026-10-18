@@ -5,12 +5,12 @@ to flip for a profit, it sends an alert to your phone right away.
 
 ```
 FLIP [kijiji] $4,500 - 2014 Honda Civic LX - as is
-Watch: Honda Civic 2012-2016
+Watch: Honda Civic
 2014 | 182,000 km
-Est. profit $2,315 (37% ROI)
-Resale est. $8,500 (2014 value)
-Location: Toronto
-Signals: as is, needs safety, moving, must go
+Est. profit $2,815 (56% ROI)
+Resale est. $7,815 (90% of $8,683 median ask, 9 2013-2015 comps)
+Location: Calgary
+Signals: as is, moving, must go
 https://www.kijiji.ca/v-cars-trucks/...
 ```
 
@@ -35,7 +35,7 @@ https://www.kijiji.ca/v-cars-trucks/...
 
 ### Valuing cars
 
-Each watch uses one of these:
+Each watch uses one of these. The example config uses `auto` for every model, which is the easiest way to start:
 
 | Option | When to use it |
 | --- | --- |
@@ -57,8 +57,12 @@ playwright install chromium          # only needed for Facebook
 cp config.example.yaml config.yaml   # then edit your area, watchlist, values and costs
 ```
 
-In `deals:`, set `purchase_tax_pct` for your province (Ontario charges 13% RST on private sales) and
-`fixed_costs` for what a flip costs you (safety certification, detailing, small repairs, plates).
+The example config is set up for **Calgary**: Kijiji Calgary, Facebook Marketplace within 60 km, and no purchase tax,
+because Alberta charges none on private used-car sales. It watches the Civic, Accord, CR-V, Corolla, Camry and RAV4,
+cheap Hondas and Toyotas of any model, and every new car listing under $6k with motivated-seller wording.
+Set `fixed_costs` in `deals:` to what a flip really costs you (registration, detailing, small repairs).
+
+Queries left empty (`""`) scan every new listing in the Cars & Trucks category (Kijiji) or Vehicles (Facebook).
 
 ### Phone notifications (ntfy, free, no account)
 
@@ -95,7 +99,7 @@ challenges logins from new locations.
 
 ```yaml
 watches:
-  - name: Honda Civic 2012-2016
+  - name: Honda Civic 2012-2016   # once you know your own numbers
     queries: ["honda civic"]
     min_year: 2012
     max_year: 2016
@@ -121,9 +125,9 @@ For Kijiji, take `location_slug` and `location_id` from a cars search URL for yo
 
 ## Notes
 
-- Before you buy, run a lien check and a history report (e.g. CARFAX Canada). In Ontario, ask for the Used Vehicle
-  Information Package. Many provinces limit how many cars a private person can resell per year before
-  dealer registration is required (OMVIC in Ontario).
+- Before you buy, run a lien check (Alberta Personal Property Registry, at a registry agent) and a history report
+  (e.g. CARFAX Canada). In Alberta, buying and reselling cars for profit as a business requires an AMVIC licence.
+  Unlicensed flipping ("curbsiding") is illegal, so check AMVIC's rules before you scale up.
 - Keep `poll_interval_seconds` at 120 or more. Polling harder gets you rate-limited or blocked, and on Facebook it
   puts your account at risk. Automated access is against Facebook's terms, so consider a secondary account.
 - Both sites change their page markup from time to time. The parsers live in `flipwatch/sources/` and have

@@ -101,7 +101,15 @@ def test_facebook_cards():
 def test_facebook_url():
     cfg = FacebookConfig(location="toronto", radius_km=100)
     url = facebook.build_search_url(cfg, "honda civic", SearchFilters(max_price=8000, min_year=2012, max_km=200000))
-    assert url.startswith("https://www.facebook.com/marketplace/toronto/search/?query=honda+civic")
+    assert url.startswith("https://www.facebook.com/marketplace/toronto/search/?query=honda+civic&sortBy=")
     for part in ("sortBy=creation_time_descend", "maxPrice=8000", "minYear=2012", "maxMileage=200000", "radius=100"):
         assert part in url
     assert "maxYear" not in url
+
+
+def test_browse_all_urls():
+    kcfg = KijijiConfig(location_slug="calgary", location_id=1700199)
+    assert kijiji.build_search_url(kcfg, "") == "https://www.kijiji.ca/b-cars-trucks/calgary/c174l1700199?sort=dateDesc"
+    url = facebook.build_search_url(FacebookConfig(location="calgary"), "", SearchFilters(max_price=6000))
+    assert url.startswith("https://www.facebook.com/marketplace/calgary/vehicles?sortBy=creation_time_descend")
+    assert "maxPrice=6000" in url and "query" not in url

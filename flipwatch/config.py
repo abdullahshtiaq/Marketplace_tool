@@ -206,6 +206,8 @@ def parse_config(raw: dict) -> Config:
         watch = _build(Watch, w, f"watches[{i}]")
         if isinstance(watch.queries, str):
             watch.queries = [watch.queries]
+        # "" or "*" browses the newest listings in the whole category
+        watch.queries = ["" if q in (None, "*") else str(q).strip() for q in watch.queries]
         if not watch.queries:
             raise ConfigError(f"watches[{i}] ({watch.name}): needs at least one query")
         if isinstance(watch.market_value, str) and not watch.auto_value:

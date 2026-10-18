@@ -22,7 +22,10 @@ def _slug(text: str) -> str:
 
 def build_search_url(cfg: KijijiConfig, query: str, max_price: float | None = None) -> str:
     q = _slug(query)
-    if cfg.category_slug and cfg.category_id is not None:
+    has_category = cfg.category_slug and cfg.category_id is not None
+    if not q and has_category:  # empty query: browse the whole category
+        path = f"/b-{cfg.category_slug}/{cfg.location_slug}/c{cfg.category_id}l{cfg.location_id}"
+    elif has_category:
         path = f"/b-{cfg.category_slug}/{cfg.location_slug}/{q}/k0c{cfg.category_id}l{cfg.location_id}"
     else:
         path = f"/b-{cfg.location_slug}/{q}/k0l{cfg.location_id}"

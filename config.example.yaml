@@ -1,15 +1,15 @@
 # Copy to config.yaml and edit.  ${ENV_VARS} are expanded, so secrets can live
 # in your environment instead of this file.
 
-poll_interval_seconds: 180   # time between full scans (keep >= 120 to avoid blocks)
+poll_interval_seconds: 120   # time between full scans (keep >= 120 to avoid blocks)
 jitter_seconds: 45
 request_delay_seconds: 4     # pause between individual searches
 db_path: flipwatch.db
 alert_on_first_run: false    # first scan only records existing listings
 
 deals:
-  fixed_costs: 600           # safety cert, detailing, small fixes, plates, gas
-  purchase_tax_pct: 0.13     # Ontario: buyer pays 13% RST on private sales (set 0 / 0.05 for your province)
+  fixed_costs: 500           # registration/plates, detailing, oil change, small fixes, gas
+  purchase_tax_pct: 0.0      # Alberta: no sales tax on private used-car sales
   min_profit: 1000           # default for every watch
   min_roi: 0.15              # profit / (price + tax + fixed_costs)
   min_price: 500             # ignore "$1" / "$123" placeholder prices
@@ -22,17 +22,18 @@ deals:
 
 kijiji:
   enabled: true
-  # Take these from a Kijiji cars search URL for your area, e.g.
-  # https://www.kijiji.ca/b-cars-trucks/gta-greater-toronto-area/civic/k0c174l1700272
-  location_slug: gta-greater-toronto-area
-  location_id: 1700272
+  # From a Kijiji cars search URL for your area, e.g.
+  # https://www.kijiji.ca/b-cars-trucks/calgary/civic/k0c174l1700199
+  # (open a Calgary search on kijiji.ca and check the number after "l" matches)
+  location_slug: calgary
+  location_id: 1700199
   category_slug: cars-trucks
   category_id: 174
 
 facebook:
   enabled: true              # run `python -m flipwatch fb-login` once first
-  location: toronto          # facebook.com/marketplace/<location>/
-  radius_km: 100
+  location: calgary          # facebook.com/marketplace/<location>/
+  radius_km: 60              # covers Airdrie, Cochrane, Chestermere, Okotoks
   days_since_listed: 1
   headless: true
 
@@ -44,39 +45,67 @@ notify:
   # telegram_chat_id: ${TELEGRAM_CHAT_ID}
 
 # Each watch = what to search + how to value it.  Three ways to value a car:
-#   market_value_by_year: {2014: 8500, ...}   your own numbers (CBB / AutoTrader / sold comps)
-#   market_value: 9000                         one number for the whole year range
 #   market_value: auto                         median asking price of similar listings
-#                                              flipwatch has seen (+/- 1 model year)
-# The values below are PLACEHOLDERS - replace them with real numbers for your area.
+#                                              flipwatch has seen (+/- 1 model year).
+#                                              Easiest when you're starting out.
+#   market_value_by_year: {2014: 8500, ...}   your own numbers once you know a model
+#   market_value: 9000                         one number for the whole year range
+# Don't set max_price on `auto` watches - it would hide the pricier listings the
+# median is built from.  Leave queries empty ("") to scan every new car listing.
 watches:
-  - name: Honda Civic 2012-2016
+  # --- Hondas ---
+  - name: Honda Civic
     queries: ["honda civic"]
-    min_year: 2012
-    max_year: 2016
-    max_km: 220000
-    market_value_by_year:
-      2012: 6500
-      2013: 7500
-      2014: 8500
-      2015: 10000
-      2016: 12500
-    exclude: [type r, si, hybrid]   # different market - give them their own watch
-
-  - name: Toyota Corolla (auto comps)
-    queries: ["toyota corolla"]
-    min_year: 2010
+    min_year: 2008
     max_km: 250000
     market_value: auto
+    exclude: [type r, si, hybrid]   # different market - give them their own watch
 
-  - name: Toyota Tacoma (auto comps)
-    queries: ["toyota tacoma"]
+  - name: Honda Accord
+    queries: ["honda accord"]
     min_year: 2008
+    max_km: 250000
     market_value: auto
-    min_profit: 2000
+    exclude: [hybrid]
 
-  - name: Mechanic specials under $3k
-    queries: ["as is car", "mechanic special"]
-    max_price: 3000
+  - name: Honda CR-V
+    queries: ["honda crv", "honda cr-v"]
     match_query_terms: false
-    require_any: [as is, as-is, mechanic special, needs safety, no safety, check engine, needs work]
+    require_all: [honda]
+    require_any: [crv, cr-v, "cr v"]
+    min_year: 2007
+    max_km: 260000
+    market_value: auto
+
+  # --- Toyotas ---
+  - name: Toyota Corolla
+    queries: ["toyota corolla"]
+    min_year: 2008
+    max_km: 260000
+    market_value: auto
+
+  - name: Toyota Camry
+    queries: ["toyota camry"]
+    min_year: 2008
+    max_km: 260000
+    market_value: auto
+    exclude: [hybrid]
+
+  - name: Toyota RAV4
+    queries: ["toyota rav4"]
+    min_year: 2007
+    max_km: 260000
+    market_value: auto
+    exclude: [hybrid]
+
+  # --- Anything else that looks like a flip ---
+  - name: Cheap Honda/Toyota (any model)
+    queries: ["honda", "toyota"]
+    max_price: 5000
+    min_year: 2005
+
+  - name: Any car - motivated seller
+    queries: [""]                   # every new car listing in the area
+    max_price: 6000
+    require_any: [as is, as-is, must go, must sell, moving, quick sale, need gone, obo,
+                  needs battery, check engine, mechanic special, needs tlc, estate]
