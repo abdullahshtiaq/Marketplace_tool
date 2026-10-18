@@ -1,0 +1,75 @@
+# Copy to config.yaml and edit.  ${ENV_VARS} are expanded, so secrets can live
+# in your environment instead of this file.
+
+poll_interval_seconds: 180   # time between full scans (keep >= 120 to avoid blocks)
+jitter_seconds: 45
+request_delay_seconds: 4     # pause between individual searches
+db_path: flipwatch.db
+alert_on_first_run: false    # first scan only records existing listings
+
+deals:
+  selling_fee_pct: 0.13      # eBay-ish fees when you resell
+  fixed_costs: 5             # shipping/sleeves/gas per flip
+  min_profit: 30             # default for every watch
+  min_roi: 0.30
+  min_price: 5               # ignore "$1" placeholder prices
+  # exclude: / signals: override the built-in word lists (see flipwatch/config.py)
+
+kijiji:
+  enabled: true
+  # Take these from a Kijiji search URL for your area, e.g.
+  # https://www.kijiji.ca/b-gta-greater-toronto-area/pokemon/k0l1700272
+  location_slug: gta-greater-toronto-area
+  location_id: 1700272
+
+facebook:
+  enabled: true              # run `python -m flipwatch fb-login` once first
+  location: toronto          # facebook.com/marketplace/<location>/
+  radius_km: 60
+  days_since_listed: 1
+  headless: true
+
+notify:
+  console: true
+  ntfy_topic: ${NTFY_TOPIC}          # phone push via the ntfy app - pick a hard-to-guess topic
+  # discord_webhook: ${DISCORD_WEBHOOK}
+  # telegram_bot_token: ${TELEGRAM_BOT_TOKEN}
+  # telegram_chat_id: ${TELEGRAM_CHAT_ID}
+
+# Each watch = what to search + what it's worth.  market_value is what you can
+# realistically sell it for (check recent eBay *sold* listings).  You get an alert
+# when price <= market_value * (1 - fees) - fixed_costs - min_profit.
+watches:
+  # --- Trading cards ---
+  - name: Pokemon bulk / collections
+    queries: ["pokemon cards", "pokemon binder", "pokemon collection"]
+    max_price: 60            # no market_value: alert on anything this cheap
+    require_any: [lot, collection, binder, bulk, box]
+
+  - name: Charizard
+    queries: ["charizard"]
+    market_value: 120
+    exclude: [sticker, plush, figure, funko, jumbo, oversized]
+
+  - name: Pokemon booster boxes (sealed)
+    queries: ["pokemon booster box"]
+    market_value: 180
+    require_any: [sealed]
+
+  - name: Sports card lots
+    queries: ["hockey cards", "baseball cards", "basketball cards"]
+    max_price: 40
+    require_any: [lot, collection, binder, rookie, box]
+
+  # --- Graphics cards (delete if you only flip trading cards) ---
+  - name: RTX 3080
+    queries: ["rtx 3080"]
+    market_value: 450
+    min_profit: 60
+    exclude: [laptop, ti, box only]   # "ti" skips the pricier 3080 Ti
+
+  - name: RTX 4070
+    queries: ["rtx 4070"]
+    market_value: 520
+    min_profit: 60
+    exclude: [laptop, box only]

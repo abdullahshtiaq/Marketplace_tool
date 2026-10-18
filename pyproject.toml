@@ -1,0 +1,20 @@
+[project]
+name = "flipwatch"
+version = "0.1.0"
+description = "Instant alerts for underpriced card listings on Kijiji and Facebook Marketplace"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31", "beautifulsoup4>=4.12", "PyYAML>=6.0"]
+
+[project.optional-dependencies]
+facebook = ["playwright>=1.45"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+flipwatch = "flipwatch.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["flipwatch*"]
