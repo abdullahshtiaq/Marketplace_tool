@@ -1,28 +1,51 @@
 # flipwatch
 
-Watches **Kijiji** and **Facebook Marketplace** for new card listings (trading cards, graphics cards,
-anything else you put on the watchlist). When a new listing is priced low enough to flip for a profit,
-it sends an alert to your phone right away.
+Watches **Kijiji** and **Facebook Marketplace** for new car listings. When a car is priced low enough
+to flip for a profit, it sends an alert to your phone right away.
 
 ```
-FLIP [kijiji] $40 - Old Pokémon card binder - childhood collection
-Watch: Pokemon bulk / collections
+FLIP [kijiji] $4,500 - 2014 Honda Civic LX - as is
+Watch: Honda Civic 2012-2016
+2014 | 182,000 km
+Est. profit $2,315 (37% ROI)
+Resale est. $8,500 (2014 value)
 Location: Toronto
-Signals: binder, childhood, moving, must go
-https://www.kijiji.ca/v-hobbies-craft/...
+Signals: as is, needs safety, moving, must go
+https://www.kijiji.ca/v-cars-trucks/...
 ```
 
 ## How it works
 
-1. Every few minutes it runs each search in your watchlist on each site, sorted newest first.
+1. Every few minutes it runs each search in your watchlist on each site, sorted newest first
+   (Kijiji searches the Cars & Trucks category).
 2. The first scan of a search only records what's already listed, so after that you hear about **new** listings only.
-3. Each new listing is checked like this:
-   - **Exclude words** (`wtb`, `proxy`, `fake`, `for parts`, …) and a check that the query words actually appear in the listing, since both sites pad results with loosely related listings.
-   - **Placeholder prices** (`$1`, `$0`) and "please contact" listings are skipped.
-   - **Flip math:** `profit = market_value × (1 − selling_fee_pct) − fixed_costs − price`. You get an alert when profit ≥ `min_profit` and ROI ≥ `min_roi`.
-   - Watches without a `market_value` alert on anything under `max_price` (good for "cheap bulk lots").
-4. **Price drops** on a listing it has already seen are checked again and alerted as `PRICE DROP`.
-5. **Signal words** (`binder`, `collection`, `moving`, `must go`, `sealed`, `psa`, …) are shown in the alert. They often mean the seller wants a quick sale.
+3. Year and mileage come from the site's own data when it provides them, and otherwise from the title and description
+   ("2014 Civic, 182K km", "95k miles" is converted to km).
+4. Each new listing is checked like this:
+   - **Filters:** your year range and max km. Exclude words skip non-sales, write-offs and dealer ads
+     (`wtb`, `lease takeover`, `for parts`, `salvage`, `financing available`, `omvic`, `+ hst`, …). The query
+     words must also appear in the listing, since both sites pad results with loosely related listings.
+   - **Placeholder prices** (`$1`, `$123`) and "please contact" listings are skipped.
+   - **Flip math:**
+     `cost = price × (1 + purchase_tax_pct) + fixed_costs` and `profit = resale value − cost`.
+     You get an alert when profit ≥ `min_profit` and ROI (profit ÷ cost) ≥ `min_roi`.
+5. **Price drops** on a listing it has already seen are checked again and alerted as `PRICE DROP`.
+6. **Signal words** (`as is`, `needs safety`, `must go`, `moving`, `check engine`, `one owner`, …) are shown in
+   the alert. They often mean a motivated seller or a cheap fix.
+
+### Valuing cars
+
+Each watch uses one of these:
+
+| Option | When to use it |
+| --- | --- |
+| `market_value_by_year: {2013: 7500, 2014: 8500}` | You know the model. Take values from Canadian Black Book, AutoTrader or sold comps |
+| `market_value: 9000` | A narrow year range where one number is close enough |
+| `market_value: auto` | Let flipwatch learn: resale = `auto_resale_pct` × the **median asking price** of comparable listings it has seen in the last 30 days, within ±1 model year. It needs `auto_min_comps` comparable listings first, so the first scans build up data before it alerts |
+| none, just `max_price` | "Anything under $3k matching these words", e.g. mechanic specials |
+
+`auto` compares against asking prices, not sold prices. Keep `auto_resale_pct` below 1 and use it to
+find leads, not as an appraisal.
 
 ## Setup
 
@@ -31,8 +54,11 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium          # only needed for Facebook
 
-cp config.example.yaml config.yaml   # then edit your area, watchlist and values
+cp config.example.yaml config.yaml   # then edit your area, watchlist, values and costs
 ```
+
+In `deals:`, set `purchase_tax_pct` for your province (Ontario charges 13% RST on private sales) and
+`fixed_costs` for what a flip costs you (safety certification, detailing, small repairs, plates).
 
 ### Phone notifications (ntfy, free, no account)
 
@@ -65,41 +91,43 @@ Run it on a machine that stays on at home, like a desktop, a Raspberry Pi or an 
 or Task Scheduler). A residential IP matters: both sites often block cloud/datacenter IPs, and Facebook
 challenges logins from new locations.
 
-## Tuning the watchlist
+## Watch options
 
 ```yaml
 watches:
-  - name: Charizard
-    queries: ["charizard"]
-    market_value: 120         # what it actually sells for (eBay *sold* listings)
-    min_profit: 40            # optional per-watch overrides of the deals: defaults
-    exclude: [plush, figure, sticker]
-  - name: Pokemon bulk
-    queries: ["pokemon cards", "pokemon binder"]
-    max_price: 60
-    require_any: [lot, binder, collection, bulk]
+  - name: Honda Civic 2012-2016
+    queries: ["honda civic"]
+    min_year: 2012
+    max_year: 2016
+    max_km: 220000
+    market_value_by_year: {2012: 6500, 2013: 7500, 2014: 8500, 2015: 10000, 2016: 12500}
+    exclude: [type r, si, hybrid]
 ```
 
 | Option | Meaning |
 | --- | --- |
 | `queries` | Search terms, run on each site in `sources` (default both) |
-| `market_value` | Realistic resale value; turns on the profit/ROI check |
+| `market_value`, `market_value_by_year` | How to value the car (see above) |
+| `min_year`, `max_year`, `max_km` | Vehicle limits. Listings with an unknown year or km still pass |
 | `max_price` / `min_price` | Hard price limits |
 | `min_profit`, `min_roi` | Per-watch overrides of the `deals:` defaults |
 | `require_all`, `require_any`, `exclude` | Word filters on title and description |
 | `match_query_terms` | Require every query word in the listing (default `true`) |
 | `allow_no_price` | Alert on "please contact" listings too |
 
-Keep `market_value` up to date. It's the number that decides what counts as a flip.
-
-For Kijiji, take `location_slug` and `location_id` from a search URL for your area:
-`kijiji.ca/b-<location_slug>/<query>/k0l<location_id>`. For Facebook, `location` is the
+For Kijiji, take `location_slug` and `location_id` from a cars search URL for your area:
+`kijiji.ca/b-cars-trucks/<location_slug>/<query>/k0c174l<location_id>`. For Facebook, `location` is the
 `facebook.com/marketplace/<location>/` part of the URL.
 
 ## Notes
 
-- Keep `poll_interval_seconds` at 120 or more. Polling harder gets you rate-limited or blocked, and on Facebook it puts your account at risk. Automated access is against Facebook's terms, so consider a secondary account.
-- Both sites change their page markup from time to time. The parsers live in `flipwatch/sources/` and have fixture tests in `tests/`. If searches start returning 0 listings, those are the files to update.
+- Before you buy, run a lien check and a history report (e.g. CARFAX Canada). In Ontario, ask for the Used Vehicle
+  Information Package. Many provinces limit how many cars a private person can resell per year before
+  dealer registration is required (OMVIC in Ontario).
+- Keep `poll_interval_seconds` at 120 or more. Polling harder gets you rate-limited or blocked, and on Facebook it
+  puts your account at risk. Automated access is against Facebook's terms, so consider a secondary account.
+- Both sites change their page markup from time to time. The parsers live in `flipwatch/sources/` and have
+  fixture tests in `tests/`. If searches start returning 0 listings, those are the files to update.
 
 ## Development
 

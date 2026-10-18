@@ -1,3 +1,3 @@
-"""flipwatch: alerts for underpriced card listings on Kijiji and Facebook Marketplace."""
+"""flipwatch: alerts for underpriced car listings on Kijiji and Facebook Marketplace."""
 
 __version__ = "0.1.0"

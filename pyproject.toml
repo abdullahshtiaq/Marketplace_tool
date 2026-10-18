@@ -1,7 +1,7 @@
 [project]
 name = "flipwatch"
 version = "0.1.0"
-description = "Instant alerts for underpriced card listings on Kijiji and Facebook Marketplace"
+description = "Instant alerts for underpriced car listings on Kijiji and Facebook Marketplace"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.31", "beautifulsoup4>=4.12", "PyYAML>=6.0"]
 

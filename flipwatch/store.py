@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS seen (
     title TEXT,
     price REAL,
     url TEXT,
+    year INTEGER,
+    mileage_km INTEGER,
+    comparable INTEGER NOT NULL DEFAULT 0,
     first_seen REAL NOT NULL,
     last_seen REAL NOT NULL,
     PRIMARY KEY (listing_key, watch)
@@ -48,16 +51,41 @@ class Store:
         ).fetchone()
         return _MISSING if row is None else row[0]
 
-    def record(self, listing: Listing, watch: str) -> None:
+    def record(self, listing: Listing, watch: str, comparable: bool = False) -> None:
+        """Remember a listing. comparable=True lets its price count as a comp for auto valuation."""
         now = time.time()
         self.conn.execute(
-            """INSERT INTO seen (listing_key, watch, title, price, url, first_seen, last_seen)
-               VALUES (?, ?, ?, ?, ?, ?, ?)
+            """INSERT INTO seen (listing_key, watch, title, price, url, year, mileage_km, comparable,
+                                 first_seen, last_seen)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT (listing_key, watch)
-               DO UPDATE SET price = excluded.price, title = excluded.title, last_seen = excluded.last_seen""",
-            (listing.key, watch, listing.title, listing.price, listing.url, now, now),
+               DO UPDATE SET price = excluded.price, title = excluded.title, year = excluded.year,
+                             mileage_km = excluded.mileage_km, comparable = excluded.comparable,
+                             last_seen = excluded.last_seen""",
+            (listing.key, watch, listing.title, listing.price, listing.url, listing.year,
+             listing.mileage_km, int(comparable), now, now),
         )
         self.conn.commit()
+
+    def comp_prices(
+        self,
+        watch: str,
+        *,
+        exclude_key: str,
+        min_price: float,
+        days: float,
+        year: int | None = None,
+        year_window: int = 1,
+    ) -> list[float]:
+        """Recent asking prices of comparable listings for a watch (optionally near a model year)."""
+        sql = """SELECT price FROM seen
+                 WHERE watch = ? AND comparable = 1 AND listing_key != ?
+                   AND price >= ? AND last_seen >= ?"""
+        params: list = [watch, exclude_key, min_price, time.time() - days * 86400]
+        if year is not None:
+            sql += " AND year BETWEEN ? AND ?"
+            params += [year - year_window, year + year_window]
+        return [row[0] for row in self.conn.execute(sql, params)]
 
     def last_alert_price(self, listing: Listing):
         row = self.conn.execute(

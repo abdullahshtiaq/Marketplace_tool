@@ -8,60 +8,75 @@ from typing import Any
 
 import yaml
 
-# Words that almost always mean the listing isn't a real, flippable item.
+# Words that almost always mean the listing isn't a car you can buy and flip.
 DEFAULT_EXCLUDES = [
     "wtb",
     "looking for",
     "iso",
-    "buying",
     "want to buy",
-    "fake",
-    "proxy",
-    "proxies",
-    "custom",
-    "orica",
-    "replica",
-    "reprint",
-    "repro",
-    "broken",
-    "for parts",
-    "not working",
     "trade only",
     "trades only",
+    "lease takeover",
+    "lease transfer",
+    "take over lease",
+    "rental",
+    "for rent",
+    "parts only",
+    "for parts",
+    "parting out",
+    "part out",
+    "salvage",
+    "no ownership",
+    "no papers",
+    # dealer ads - rarely priced to flip
+    "financing available",
+    "we finance",
+    "all credit",
+    "omvic",
+    "plus hst",
+    "+ hst",
 ]
 
-# Words that hint a seller doesn't know (or care about) what they have.
+# Words that hint the seller wants it gone fast, or the car needs a cheap fix.
 DEFAULT_SIGNALS = [
-    "lot",
-    "collection",
-    "binder",
-    "bulk",
-    "old cards",
-    "childhood",
-    "grandpa",
-    "estate",
-    "moving",
+    "as is",
+    "as-is",
+    "needs safety",
+    "no safety",
     "must go",
+    "must sell",
+    "moving",
     "quick sale",
     "need gone",
     "obo",
-    "sealed",
-    "1st edition",
-    "first edition",
-    "psa",
-    "bgs",
-    "cgc",
-    "graded",
+    "estate",
+    "one owner",
+    "low km",
+    "no rust",
+    "check engine",
+    "needs battery",
+    "needs tlc",
+    "mechanic special",
+    "runs and drives",
+    "winter tires",
 ]
 
 
 @dataclass
 class DealSettings:
-    selling_fee_pct: float = 0.13  # marketplace + payment fees when you resell
-    fixed_costs: float = 5.0  # shipping supplies, gas, sleeves, etc.
-    min_profit: float = 30.0
-    min_roi: float = 0.30  # profit / purchase price
-    min_price: float = 5.0  # ignores "$1" placeholder prices
+    selling_fee_pct: float = 0.0  # Kijiji/Marketplace are free for private sellers
+    # Safety certificate, detailing, small repairs buffer, plates, gas...
+    fixed_costs: float = 600.0
+    # Sales tax you pay when buying privately (Ontario charges 13% RST).
+    purchase_tax_pct: float = 0.0
+    min_profit: float = 1000.0
+    min_roi: float = 0.15  # profit / total cost (price + tax + fixed_costs)
+    min_price: float = 500.0  # ignores "$1" / "$123" placeholder prices
+    # market_value: auto -> resale estimate = median comparable asking price * this
+    auto_resale_pct: float = 0.90
+    auto_min_comps: int = 5
+    auto_comp_days: int = 30
+    auto_year_window: int = 1  # compare against cars within +/- this many model years
     exclude: list[str] = field(default_factory=lambda: list(DEFAULT_EXCLUDES))
     signals: list[str] = field(default_factory=lambda: list(DEFAULT_SIGNALS))
 
@@ -71,10 +86,16 @@ class Watch:
     name: str
     queries: list[str]
     sources: list[str] = field(default_factory=lambda: ["kijiji", "facebook"])
-    # What you can realistically resell it for (e.g. recent eBay sold average).
-    market_value: float | None = None
+    # What you can realistically resell it for: a number, or "auto" to use the
+    # median asking price of comparable listings flipwatch has seen.
+    market_value: float | str | None = None
+    # Per-model-year resale values, e.g. {2012: 6500, 2013: 7500}; wins over market_value.
+    market_value_by_year: dict[int, float] = field(default_factory=dict)
     max_price: float | None = None
     min_price: float | None = None
+    min_year: int | None = None
+    max_year: int | None = None
+    max_km: int | None = None
     min_profit: float | None = None
     min_roi: float | None = None
     require_all: list[str] = field(default_factory=list)
@@ -85,6 +106,10 @@ class Watch:
     match_query_terms: bool = True
     allow_no_price: bool = False
 
+    @property
+    def auto_value(self) -> bool:
+        return isinstance(self.market_value, str) and self.market_value.lower() == "auto"
+
 
 @dataclass
 class KijijiConfig:
@@ -92,9 +117,9 @@ class KijijiConfig:
     # From a Kijiji search URL: /b-<location_slug>/.../k0l<location_id>
     location_slug: str = "canada"
     location_id: int = 0
-    # Optional, e.g. category_slug "buy-sell", category_id 10
-    category_slug: str | None = None
-    category_id: int | None = None
+    # Cars & Trucks category; set both to null to search all of Kijiji.
+    category_slug: str | None = "cars-trucks"
+    category_id: int | None = 174
     user_agent: str = (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
@@ -183,6 +208,9 @@ def parse_config(raw: dict) -> Config:
             watch.queries = [watch.queries]
         if not watch.queries:
             raise ConfigError(f"watches[{i}] ({watch.name}): needs at least one query")
+        if isinstance(watch.market_value, str) and not watch.auto_value:
+            raise ConfigError(f"watches[{i}] ({watch.name}): market_value must be a number or 'auto'")
+        watch.market_value_by_year = {int(y): float(v) for y, v in (watch.market_value_by_year or {}).items()}
         watches.append(watch)
 
     sections = {

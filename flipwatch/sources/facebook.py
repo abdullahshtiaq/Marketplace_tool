@@ -11,8 +11,8 @@ import re
 from urllib.parse import urlencode
 
 from ..config import FacebookConfig
-from ..models import Listing, parse_price
-from . import SourceError
+from ..models import Listing, parse_mileage_km, parse_price
+from . import SearchFilters, SourceError
 
 BASE_URL = "https://www.facebook.com"
 _ITEM_ID_RE = re.compile(r"/marketplace/item/(\d+)")
@@ -27,15 +27,22 @@ els => els.map(e => ({
 """
 
 
-def build_search_url(cfg: FacebookConfig, query: str, max_price: float | None = None) -> str:
+def build_search_url(cfg: FacebookConfig, query: str, filters: SearchFilters | None = None) -> str:
+    filters = filters or SearchFilters()
     params = {
         "query": query,
         "sortBy": "creation_time_descend",
         "daysSinceListed": cfg.days_since_listed,
         "exact": "false",
     }
-    if max_price is not None:
-        params["maxPrice"] = int(max_price)
+    if filters.max_price is not None:
+        params["maxPrice"] = int(filters.max_price)
+    if filters.min_year is not None:
+        params["minYear"] = filters.min_year
+    if filters.max_year is not None:
+        params["maxYear"] = filters.max_year
+    if filters.max_km is not None:
+        params["maxMileage"] = filters.max_km
     if cfg.radius_km:
         params["radius"] = cfg.radius_km
     return f"{BASE_URL}/marketplace/{cfg.location}/search/?{urlencode(params)}"
@@ -45,7 +52,8 @@ def parse_cards(items: list[dict]) -> list[Listing]:
     """Turn raw result-card anchors ({href, text, img}) into listings.
 
     A card's visible text is, line by line: current price (optionally followed
-    by the old price on a price drop), title, location.
+    by the old price on a price drop), title, location and, for vehicles,
+    mileage ("180K km").
     """
     listings: dict[str, Listing] = {}
     for item in items:
@@ -67,6 +75,7 @@ def parse_cards(items: list[dict]) -> list[Listing]:
             url=f"{BASE_URL}/marketplace/item/{listing_id}/",
             location=lines[1] if len(lines) > 1 else "",
             image_url=item.get("img"),
+            mileage_km=next((km for ln in lines[2:] if (km := parse_mileage_km(ln))), None),
         )
     return list(listings.values())
 
@@ -114,14 +123,14 @@ class FacebookSource:
             self._page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
         return self._page
 
-    def search(self, query: str, max_price: float | None = None) -> list[Listing]:
+    def search(self, query: str, filters: SearchFilters) -> list[Listing]:
         from playwright.sync_api import Error as PlaywrightError
         from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
         page = self._ensure_page()
         timeout_ms = self.cfg.timeout_seconds * 1000
         try:
-            page.goto(build_search_url(self.cfg, query, max_price), wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(build_search_url(self.cfg, query, filters), wait_until="domcontentloaded", timeout=timeout_ms)
             if "/login" in page.url or "checkpoint" in page.url:
                 raise SourceError("not logged in to Facebook; run: python -m flipwatch fb-login")
             try:

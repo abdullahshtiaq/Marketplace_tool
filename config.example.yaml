@@ -8,24 +8,31 @@ db_path: flipwatch.db
 alert_on_first_run: false    # first scan only records existing listings
 
 deals:
-  selling_fee_pct: 0.13      # eBay-ish fees when you resell
-  fixed_costs: 5             # shipping/sleeves/gas per flip
-  min_profit: 30             # default for every watch
-  min_roi: 0.30
-  min_price: 5               # ignore "$1" placeholder prices
+  fixed_costs: 600           # safety cert, detailing, small fixes, plates, gas
+  purchase_tax_pct: 0.13     # Ontario: buyer pays 13% RST on private sales (set 0 / 0.05 for your province)
+  min_profit: 1000           # default for every watch
+  min_roi: 0.15              # profit / (price + tax + fixed_costs)
+  min_price: 500             # ignore "$1" / "$123" placeholder prices
+  # Used by watches with `market_value: auto`:
+  auto_resale_pct: 0.90      # assume you resell at 90% of the median asking price
+  auto_min_comps: 5          # need this many comparable listings before alerting
+  auto_comp_days: 30
+  auto_year_window: 1        # compare a 2014 against 2013-2015 listings
   # exclude: / signals: override the built-in word lists (see flipwatch/config.py)
 
 kijiji:
   enabled: true
-  # Take these from a Kijiji search URL for your area, e.g.
-  # https://www.kijiji.ca/b-gta-greater-toronto-area/pokemon/k0l1700272
+  # Take these from a Kijiji cars search URL for your area, e.g.
+  # https://www.kijiji.ca/b-cars-trucks/gta-greater-toronto-area/civic/k0c174l1700272
   location_slug: gta-greater-toronto-area
   location_id: 1700272
+  category_slug: cars-trucks
+  category_id: 174
 
 facebook:
   enabled: true              # run `python -m flipwatch fb-login` once first
   location: toronto          # facebook.com/marketplace/<location>/
-  radius_km: 60
+  radius_km: 100
   days_since_listed: 1
   headless: true
 
@@ -36,40 +43,40 @@ notify:
   # telegram_bot_token: ${TELEGRAM_BOT_TOKEN}
   # telegram_chat_id: ${TELEGRAM_CHAT_ID}
 
-# Each watch = what to search + what it's worth.  market_value is what you can
-# realistically sell it for (check recent eBay *sold* listings).  You get an alert
-# when price <= market_value * (1 - fees) - fixed_costs - min_profit.
+# Each watch = what to search + how to value it.  Three ways to value a car:
+#   market_value_by_year: {2014: 8500, ...}   your own numbers (CBB / AutoTrader / sold comps)
+#   market_value: 9000                         one number for the whole year range
+#   market_value: auto                         median asking price of similar listings
+#                                              flipwatch has seen (+/- 1 model year)
+# The values below are PLACEHOLDERS - replace them with real numbers for your area.
 watches:
-  # --- Trading cards ---
-  - name: Pokemon bulk / collections
-    queries: ["pokemon cards", "pokemon binder", "pokemon collection"]
-    max_price: 60            # no market_value: alert on anything this cheap
-    require_any: [lot, collection, binder, bulk, box]
+  - name: Honda Civic 2012-2016
+    queries: ["honda civic"]
+    min_year: 2012
+    max_year: 2016
+    max_km: 220000
+    market_value_by_year:
+      2012: 6500
+      2013: 7500
+      2014: 8500
+      2015: 10000
+      2016: 12500
+    exclude: [type r, si, hybrid]   # different market - give them their own watch
 
-  - name: Charizard
-    queries: ["charizard"]
-    market_value: 120
-    exclude: [sticker, plush, figure, funko, jumbo, oversized]
+  - name: Toyota Corolla (auto comps)
+    queries: ["toyota corolla"]
+    min_year: 2010
+    max_km: 250000
+    market_value: auto
 
-  - name: Pokemon booster boxes (sealed)
-    queries: ["pokemon booster box"]
-    market_value: 180
-    require_any: [sealed]
+  - name: Toyota Tacoma (auto comps)
+    queries: ["toyota tacoma"]
+    min_year: 2008
+    market_value: auto
+    min_profit: 2000
 
-  - name: Sports card lots
-    queries: ["hockey cards", "baseball cards", "basketball cards"]
-    max_price: 40
-    require_any: [lot, collection, binder, rookie, box]
-
-  # --- Graphics cards (delete if you only flip trading cards) ---
-  - name: RTX 3080
-    queries: ["rtx 3080"]
-    market_value: 450
-    min_profit: 60
-    exclude: [laptop, ti, box only]   # "ti" skips the pricier 3080 Ti
-
-  - name: RTX 4070
-    queries: ["rtx 4070"]
-    market_value: 520
-    min_profit: 60
-    exclude: [laptop, box only]
+  - name: Mechanic specials under $3k
+    queries: ["as is car", "mechanic special"]
+    max_price: 3000
+    match_query_terms: false
+    require_any: [as is, as-is, mechanic special, needs safety, no safety, check engine, needs work]

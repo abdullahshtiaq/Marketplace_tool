@@ -21,10 +21,14 @@ def format_alert(listing: Listing, verdict: Verdict, watch_name: str, price_drop
     prefix = "PRICE DROP" if price_drop_from is not None else "FLIP"
     title = f"{prefix} [{listing.source}] {price} - {listing.title}"[:200]
     lines = [f"Watch: {watch_name}"]
+    details = [str(listing.year) if listing.year else "", f"{listing.mileage_km:,} km" if listing.mileage_km else ""]
+    if any(details):
+        lines.append(" | ".join(d for d in details if d))
     if price_drop_from is not None:
         lines.append(f"Was ${price_drop_from:,.0f}, now {price}")
     if verdict.est_profit is not None:
         lines.append(f"Est. profit ${verdict.est_profit:,.0f} ({verdict.roi:.0%} ROI)")
+        lines.append(f"Resale est. ${verdict.market_value:,.0f} ({verdict.value_basis})")
     if listing.location:
         lines.append(f"Location: {listing.location}")
     if verdict.signals:
@@ -46,7 +50,7 @@ class NtfyNotifier:
         self.server = server.rstrip("/")
 
     def send(self, title, body, listing=None):
-        payload = {"topic": self.topic, "title": title, "message": body, "priority": 4, "tags": ["moneybag"]}
+        payload = {"topic": self.topic, "title": title, "message": body, "priority": 4, "tags": ["red_car"]}
         if listing is not None:
             payload["click"] = listing.url
             if listing.image_url:

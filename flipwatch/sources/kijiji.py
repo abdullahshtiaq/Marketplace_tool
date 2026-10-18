@@ -9,8 +9,8 @@ import requests
 from bs4 import BeautifulSoup
 
 from ..config import KijijiConfig
-from ..models import Listing, parse_price
-from . import SourceError
+from ..models import Listing, parse_mileage_km, parse_price, parse_year
+from . import SearchFilters, SourceError
 
 BASE_URL = "https://www.kijiji.ca"
 _LISTING_ID_RE = re.compile(r"/(\d{6,})(?:[/?#]|$)")
@@ -65,6 +65,33 @@ def _walk(node):
             yield from _walk(v)
 
 
+def _attributes(d: dict) -> dict[str, str]:
+    """Flatten Kijiji's attribute list ({canonicalName, canonicalValues}) to name -> first value."""
+    attrs = d.get("attributes")
+    if isinstance(attrs, dict):
+        attrs = attrs.get("all") or attrs.get("list") or []
+    out = {}
+    for a in attrs if isinstance(attrs, list) else []:
+        if not isinstance(a, dict):
+            continue
+        name = a.get("canonicalName") or a.get("name")
+        values = a.get("canonicalValues") or a.get("values") or [a.get("value")]
+        if isinstance(name, str) and values and values[0] is not None:
+            out[name.lower()] = str(values[0])
+    return out
+
+
+def _vehicle_details(d: dict) -> tuple[int | None, int | None]:
+    year = mileage = None
+    for name, value in _attributes(d).items():
+        if year is None and "year" in name:
+            year = parse_year(value)
+        elif mileage is None and ("mileage" in name or name.endswith("km")):
+            digits = "".join(ch for ch in value if ch.isdigit())
+            mileage = int(digits) if digits else parse_mileage_km(value)
+    return year, mileage
+
+
 def _listing_from_json(d: dict) -> Listing | None:
     url = d.get("url") or d.get("seoUrl")
     title = d.get("title")
@@ -79,6 +106,7 @@ def _listing_from_json(d: dict) -> Listing | None:
     location = d.get("location")
     location_name = location.get("name", "") if isinstance(location, dict) else ""
     images = d.get("imageUrls") or []
+    year, mileage = _vehicle_details(d)
     return Listing(
         source="kijiji",
         id=listing_id,
@@ -89,6 +117,8 @@ def _listing_from_json(d: dict) -> Listing | None:
         description=(d.get("description") or "")[:1000],
         image_url=images[0] if images and isinstance(images[0], str) else None,
         posted_at=_parse_date(d.get("activationDate") or d.get("sortingDate")),
+        year=year,
+        mileage_km=mileage,
     )
 
 
@@ -162,8 +192,8 @@ class KijijiSource:
             }
         )
 
-    def search(self, query: str, max_price: float | None = None) -> list[Listing]:
-        url = build_search_url(self.cfg, query, max_price)
+    def search(self, query: str, filters: SearchFilters) -> list[Listing]:
+        url = build_search_url(self.cfg, query, filters.max_price)
         try:
             resp = self.session.get(url, timeout=self.cfg.timeout_seconds)
         except requests.RequestException as e:
