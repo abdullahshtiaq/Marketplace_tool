@@ -84,11 +84,14 @@ def test_facebook_cards():
         {"href": "/marketplace/item/111/?ref=dup", "text": "CA$4,500\n2014 Honda Civic LX\nToronto, ON"},
         {"href": "/marketplace/item/222/", "text": "CA$8,000CA$9,500\n2015 Toyota Corolla\nMississauga, ON\n95K miles"},
         {"href": "/marketplace/item/333/", "text": "Free\nScrap car"},
+        {"href": "/marketplace/item/555/", "text": "Just listed\nCA$6,800\n2007 Toyota camry\nCalgary, AB"},
         {"href": "/marketplace/category/vehicles", "text": "Vehicles"},
         {"href": "/marketplace/item/444/", "text": ""},
     ]
     listings = facebook.parse_cards(items)
-    assert [l.id for l in listings] == ["111", "222", "333"]
+    assert [l.id for l in listings] == ["111", "222", "333", "555"]
+    camry = listings[3]
+    assert (camry.price, camry.title, camry.location) == (6800.0, "2007 Toyota camry", "Calgary, AB")
     assert listings[0].price == 4500.0
     assert listings[0].title == "2014 Honda Civic LX"
     assert listings[0].location == "Toronto, ON"

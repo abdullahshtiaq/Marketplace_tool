@@ -18,10 +18,15 @@ BASE_URL = "https://www.facebook.com"
 _ITEM_ID_RE = re.compile(r"/marketplace/item/(\d+)")
 _PRICE_LINE_RE = re.compile(r"^(?:(?:CA\$|C\$|\$)\s*\d[\d,]*(?:\.\d{1,2})?\s*)+$|^free$", re.IGNORECASE)
 
+# innerText loses its line breaks for cards scrolled off screen, so join the
+# text of each innermost element instead.
 _EXTRACT_JS = """
 els => els.map(e => ({
   href: e.getAttribute('href'),
-  text: e.innerText,
+  text: Array.from(e.querySelectorAll('span, div'))
+    .filter(n => n.children.length === 0 && n.textContent.trim())
+    .map(n => n.textContent.trim())
+    .join('\\n') || e.innerText,
   img: (e.querySelector('img') || {}).src || null,
 }))
 """
@@ -52,9 +57,9 @@ def build_search_url(cfg: FacebookConfig, query: str, filters: SearchFilters | N
 def parse_cards(items: list[dict]) -> list[Listing]:
     """Turn raw result-card anchors ({href, text, img}) into listings.
 
-    A card's visible text is, line by line: current price (optionally followed
-    by the old price on a price drop), title, location and, for vehicles,
-    mileage ("180K km").
+    A card's visible text is, line by line: optional badges ("Just listed"),
+    current price (optionally followed by the old price on a price drop),
+    title, location and, for vehicles, mileage ("180K km").
     """
     listings: dict[str, Listing] = {}
     for item in items:
@@ -62,6 +67,9 @@ def parse_cards(items: list[dict]) -> list[Listing]:
         if not m or m.group(1) in listings:
             continue
         lines = [ln.strip() for ln in (item.get("text") or "").split("\n") if ln.strip()]
+        # Drop badges before the price, e.g. "Just listed".
+        first_price = next((i for i, ln in enumerate(lines[:3]) if _PRICE_LINE_RE.match(ln)), 0)
+        lines = lines[first_price:]
         price_lines = []
         while lines and _PRICE_LINE_RE.match(lines[0]):
             price_lines.append(lines.pop(0))

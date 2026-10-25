@@ -28,13 +28,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="flipwatch", description="Alerts for underpriced listings on Kijiji and Facebook Marketplace.")
     parser.add_argument("-c", "--config", default="config.yaml")
     parser.add_argument("-v", "--verbose", action="store_true", help="log every listing considered")
+    # Also accept -c/-v after the command ("flipwatch run --once -v"); SUPPRESS keeps
+    # the subcommand from overwriting values given before it.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("-c", "--config", default=argparse.SUPPRESS)
+    common.add_argument("-v", "--verbose", action="store_true", default=argparse.SUPPRESS)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    run = sub.add_parser("run", help="watch continuously and alert on flips")
+    run = sub.add_parser("run", parents=[common], help="watch continuously and alert on flips")
     run.add_argument("--once", action="store_true", help="run a single scan and exit")
     run.add_argument("--source", action="append", choices=["kijiji", "facebook"], help="limit to a source")
-    sub.add_parser("fb-login", help="open a browser to log in to Facebook once")
-    sub.add_parser("test-notify", help="send a test alert to every configured channel")
+    sub.add_parser("fb-login", parents=[common], help="open a browser to log in to Facebook once")
+    sub.add_parser("test-notify", parents=[common], help="send a test alert to every configured channel")
 
     args = parser.parse_args(argv)
     logging.basicConfig(
